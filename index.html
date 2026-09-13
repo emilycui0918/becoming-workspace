@@ -1782,9 +1782,14 @@ class Chart {
  const table=document.createElement('table'),head=table.createTHead().insertRow();['日期 / 类别',...sets.map(s=>s.label||'数量')].forEach(t=>{const th=document.createElement('th');th.textContent=t;head.appendChild(th);});const body=table.createTBody();labels.forEach((l,i)=>{const row=body.insertRow();row.insertCell().textContent=l;sets.forEach(s=>row.insertCell().textContent=String(s.data[i]??0));});this.panel.appendChild(table);}
  destroy(){this.panel.remove();this.canvas.hidden=false;}
 }
-</script></head>
+</script><style>
+#backupDock{position:fixed;top:18px;right:70px;z-index:46;display:flex;gap:8px}
+#backupDock button{min-height:36px;padding:7px 12px;border:1px solid #ddd6ca;border-radius:999px;background:rgba(255,253,249,.96);color:#37342f;font-weight:800;font-size:12px;box-shadow:0 4px 18px rgba(40,38,34,.08)}
+#backupDock button:last-child{background:#ff765d;color:#fff;border-color:#ff765d}
+@media(max-width:700px){#backupDock{top:auto;bottom:18px;left:72px;right:18px;justify-content:flex-end}#backupDock button{box-shadow:0 8px 25px rgba(40,38,34,.16)}}
+</style></head>
 <body class="font-sans text-calm-ink p-4 md:p-6 lg:p-8">
-  <div id="cloudBar"><strong>BECOMING · Offline</strong><span id="cloudMessage" role="status">正在读取本机记录…</span><button id="reloadWorkspace">重新载入</button><button id="retrySave" hidden>重试保存</button><button id="exportUnsaved">下载 JSON 备份</button></div><div id="appLayout" inert class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-6">
+  <div id="backupDock" aria-label="数据备份"><button type="button" onclick="exportJson()">↓ 导出 JSON</button><button type="button" onclick="document.getElementById('importFile').click()">↑ 导入 JSON</button></div><div id="cloudBar"><strong>BECOMING · Offline</strong><span id="cloudMessage" role="status">正在读取本机记录…</span><button id="reloadWorkspace">重新载入</button><button id="retrySave" hidden>重试保存</button><button id="exportUnsaved">下载 JSON 备份</button></div><div id="appLayout" inert class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-6">
     <aside id="sidebar" class="soft-card p-4 lg:sticky lg:top-6 h-fit">
       <div class="flex items-center gap-3 mb-4">
         <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-dopamine-orange to-dopamine-pink text-white flex items-center justify-center shadow-soft">
