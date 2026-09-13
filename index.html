@@ -6927,7 +6927,7 @@ class Chart {
         Object.keys(state).forEach(key => delete state[key]);
         Object.assign(state, next);
         saveState(); renderAll(); alert('已载入备份。请等顶部显示已保存到账号后再离开。');
-      } catch (err) { alert('JSON 导入失败，请检查格式。'); }
+      } catch (err) { console.error(err); alert('JSON 导入失败：' + (err && err.message ? err.message : '请选择工作台导出的 .json 文件，不要选择 .html 文件')); }
     }
 
     function clearAllData() {
@@ -7683,7 +7683,7 @@ function editApplication(id = '') { const rows = v5Rows('applications'), old = r
         renderApplications(); if (currentSection === 'style-section')
         renderStyle(); if (currentSection === 'money-section')
         renderMoney(); }
-    function rebuildSidebar() { const nav = $('sidebar').querySelector('nav'); const labels = [['HOME', '首页 Home', '⌂', 'home-section'], ['PLAN', '计划 Plan', '◷', 'plan-section'], ['UNIVERSITY', '大学 University', 'U', 'university-section'], ['APPLICATIONS', '申请 Applications', '↗', 'applications-section'], ['KNOWLEDGE', '我的知识 My Knowledge', 'K', 'study-section'], ['LIFE', '生活 Life', 'L', 'homebase-section'], ['MONEY', '金钱 Money', '£', 'money-section'], ['REVIEW', '复盘 Review', 'R', 'review-section'], ['ARCHIVE', '档案 Archive', 'A', 'studio-section']]; nav.innerHTML = labels.map((x, i) => `<button class="nav-btn ${i === 0 ? 'active' : ''}" data-group="${x[0]}" data-target="${x[3]}"><span class="nav-glyph" aria-hidden="true">${x[2]}</span><span>${x[1]}</span></button>`).join(''); }
+    function rebuildSidebar() { const nav = $('sidebar').querySelector('nav'); const labels = [['HOME', '首页 Home', '⌂', 'home-section'], ['PLAN', '计划 Plan', '◷', 'plan-section'], ['UNIVERSITY', '大学 University', 'U', 'university-section'], ['APPLICATIONS', '申请 Applications', '↗', 'applications-section'], ['KNOWLEDGE', '我的知识 My Knowledge', 'K', 'study-section'], ['LIFE', '生活 Life', 'L', 'homebase-section'], ['MONEY', '金钱 Money', '£', 'money-section'], ['REVIEW', '复盘 Review', 'R', 'review-section'], ['ARCHIVE', '档案 Archive', 'A', 'studio-section']]; nav.innerHTML = labels.map((x, i) => `<button class="nav-btn ${i === 0 ? 'active' : ''}" data-group="${x[0]}" data-target="${x[3]}"><span class="nav-glyph" aria-hidden="true">${x[2]}</span><span>${x[1]}</span></button>`).join(''); nav.querySelectorAll('.nav-btn').forEach(button => { button.onclick = () => navTo(button.dataset.target); }); }
     function prepareUtility() { const bar = $('cloudBar'); bar.innerHTML += `<button id="v5UtilityButton" aria-label="更多与设置" aria-expanded="false">•••</button><div id="v5UtilityMenu" hidden><div id="v5SyncStatus">${v5Title($('cloudMessage')?.textContent || 'Syncing…')}</div><button onclick="openGlobalSearch();$('v5UtilityMenu').hidden=true">搜索 · Search</button><button onclick="showInbox();$('v5UtilityMenu').hidden=true">Inbox</button><button onclick="exportJson()">导出备份 · Export</button><button onclick="navTo('settings-section');$('v5UtilityMenu').hidden=true">数据设置 · Settings</button><button onclick="location.reload()">重新加载 · Reload</button></div>`; const btn = $('v5UtilityButton'), menu = $('v5UtilityMenu'); btn.onclick = () => { menu.hidden = !menu.hidden; btn.setAttribute('aria-expanded', String(!menu.hidden)); }; }
     function collapseLegacyBuilders() { document.querySelectorAll('#workflow-section .small-stat').forEach(el => { if (/新建项目|新建任务/.test(el.textContent || '')) {
         const d = document.createElement('details');
