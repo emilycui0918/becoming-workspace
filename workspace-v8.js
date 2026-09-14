@@ -89,12 +89,7 @@ function validateImportIds(value){if(!value||typeof value!=="object")return;for(
       { value:'done', label:'完成', progress:100, color:'bg-emerald-100 text-emerald-700' }
     ];
     const PROJECT_AREAS = [
-      { value:'research', label:'科研 / 实验' },
-      { value:'writing', label:'写作 / 论文' },
-      { value:'submission', label:'投稿 / 发表' },
-      { value:'admin', label:'行政 / 沟通' },
-      { value:'life', label:'生活 / 健康' },
-      { value:'other', label:'其他 / 暂不好分类' }
+      { value:'writing', label:'写作 / 论文' }
     ];
     const PROJECT_STATUS_OPTIONS = [
       { value:'active', label:'进行中' },
@@ -362,7 +357,7 @@ function validateImportIds(value){if(!value||typeof value!=="object")return;for(
       if (!item || item.title == null) return null;
       const title = String(item.title || '').trim();
       if (!title) return null;
-      const area = PROJECT_AREAS.some(opt => opt.value === item.area) ? item.area : 'research';
+      const area = 'writing';
       const status = PROJECT_STATUS_OPTIONS.some(opt => opt.value === item.status) ? item.status : 'active';
       return {
         id: String(item.id || uid('proj')),
@@ -1837,7 +1832,7 @@ function validateImportIds(value){if(!value||typeof value!=="object")return;for(
     function renderWorkflow() {
       const date = $('workflowDate').value || todayStr();
       syncAllSubmissionProjects();
-      const allTasks = [...state.tasks];
+      const allTasks = state.tasks.filter(task => !window.isLegacyRoutineTask?.(task));
       const allProjects = [...state.projects];
       if (workflowSelectedProjectId && !projectById(workflowSelectedProjectId)) workflowSelectedProjectId = '';
 
@@ -4979,7 +4974,7 @@ function editApplication(id = '') { const rows = v5Rows('applications'), old = r
   }
   function renderQuadrantBoard() {
     const board = ensureQuadrantHost(); if (!board) return;
-    const tasks = state.tasks.filter(taskOpen).filter(task => !quadrantProjectFilter || task.projectId === quadrantProjectFilter);
+    const tasks = state.tasks.filter(taskOpen).filter(task => !window.isLegacyRoutineTask?.(task)).filter(task => !quadrantProjectFilter || task.projectId === quadrantProjectFilter);
     const projectOptions = state.projects.map(project=>`<option value="${project.id}" ${project.id===quadrantProjectFilter?'selected':''}>${v5Title(project.title)}</option>`).join('');
     board.innerHTML = `<div class="v6-quadrant-toolbar"><div><h2>任务四象限 · Eisenhower Matrix</h2><p>拖动任务卡可以跨象限或调整顺序；手机上使用卡片里的“移动到”。</p></div><select onchange="setQuadrantProjectFilter(this.value)"><option value="">全部项目</option>${projectOptions}</select></div><div class="v6-quadrant-grid">${QUADRANT_OPTIONS.map(meta=>{
       const rows=tasks.filter(task=>task.quadrant===meta.value);
@@ -4994,6 +4989,45 @@ function editApplication(id = '') { const rows = v5Rows('applications'), old = r
 
   renderWorkflow();
   if (currentSection === 'plan-section') renderPlan(state.v5Meta.planTab || 'day');
+})();
+
+/* V9: unified Today execution without merging unlike data types. */
+(function(){
+  function routineDoneMap(date=todayStr()){
+    state.v5Meta=state.v5Meta&&typeof state.v5Meta==='object'?state.v5Meta:{};
+    state.v5Meta.routineDoneByDate=state.v5Meta.routineDoneByDate&&typeof state.v5Meta.routineDoneByDate==='object'?state.v5Meta.routineDoneByDate:{};
+    if(!state.v5Meta.routineDoneByDate[date])state.v5Meta.routineDoneByDate[date]={};
+    return state.v5Meta.routineDoneByDate[date];
+  }
+  window.isLegacyRoutineTask=function(task){
+    if(!task||!/^routine_/.test(String(task.id||'')))return false;
+    return routineRows().some(r=>r&&r.title===task.title);
+  };
+  window.toggleTodayRoutine=function(id){const map=routineDoneMap(todayStr());map[id]=!map[id];saveState();renderPlan('day');renderV5Home();};
+  window.toggleTodayHealth=function(id){
+    const habit=(state.habits?.list||[]).find(h=>h.id===id);if(!habit)return;
+    if(habit.mode!=='checkbox'){navTo('habit-section');return;}
+    const map=getHabitEntryMap(todayStr()),entry=normalizeCheckboxEntry(map[id]);map[id]={...entry,done:!entry.done};saveState();renderPlan('day');renderV5Home();
+  };
+  function todayExecutionTasks(){const rows=state.tasks.filter(taskOpen).filter(t=>!window.isLegacyRoutineTask(t)).filter(t=>t.todayBucket||t.status==='active'||t.dueDate===todayStr());const rank={must:0,should:1,could:2,'':3};return rows.sort((a,b)=>(rank[a.todayBucket]??4)-(rank[b.todayBucket]??4)||(a.dueDate||'9999').localeCompare(b.dueDate||'9999'));}
+  function executionTaskRows(){
+    return todayExecutionTasks().map(t=>`<div class="v9-exec-row"><button type="button" aria-label="完成任务" onclick="finishTask('${t.id}')">✓</button><div><strong>${v5Title(t.title)}</strong><small>${v5Title(todayBucketMeta(t.todayBucket).short)}${projectById(t.projectId)?' · '+v5Title(projectById(t.projectId).title):''}</small></div><button type="button" class="v9-row-open" onclick="openWorkflowTaskEditor('${t.id}')">编辑</button></div>`).join('')||'<div class="v9-empty">还没有加入今天的项目任务。四象限里的任务不会全部自动压到今天。</div>';
+  }
+  function executionRoutineRows(){
+    const done=routineDoneMap(todayStr()),rows=routineRows().filter(r=>r.active!==false&&r.cadence==='daily');
+    return rows.map(r=>`<div class="v9-exec-row ${done[r.id]?'done':''}"><button type="button" aria-label="${done[r.id]?'取消完成':'完成 SOP'}" onclick="toggleTodayRoutine('${r.id}')">✓</button><div><strong>${v5Title(r.title)}</strong><small>${v5Title(r.when||'自行安排')}${r.minutes?' · '+v5Title(r.minutes)+' min':''}</small></div><button type="button" class="v9-row-open" onclick="editRoutine('${r.id}')">编辑</button></div>`).join('')||'<div class="v9-empty">还没有启用的每日 SOP。</div>';
+  }
+  function executionHealthRows(){
+    const rows=(state.habits?.list||[]).filter(h=>h&&h.enabled!==false),date=todayStr();
+    return rows.map(h=>{const done=habitDoneOnDate(h,date);return `<div class="v9-exec-row ${done?'done':''}"><button type="button" aria-label="${done?'已完成':'记录健康项目'}" onclick="toggleTodayHealth('${h.id}')">✓</button><div><strong>${v5Title(h.icon)} ${v5Title(h.name)}</strong><small>${done?'今日已完成':h.mode==='checkbox'?'点击即可完成':'进入健康页记录'}</small></div><button type="button" class="v9-row-open" onclick="navTo('habit-section')">详情</button></div>`}).join('')||'<div class="v9-empty">还没有启用的健康项目。</div>';
+  }
+  function executionMarkup(){
+    const tasks=todayExecutionTasks(),routines=routineRows().filter(r=>r.active!==false&&r.cadence==='daily'),doneMap=routineDoneMap(todayStr()),habits=(state.habits?.list||[]).filter(h=>h&&h.enabled!==false),doneCount=routines.filter(r=>doneMap[r.id]).length+habits.filter(h=>habitDoneOnDate(h,todayStr())).length,total=tasks.length+routines.length+habits.length;
+    return `<section class="v9-execution"><div class="v9-execution-head"><div><h2>今日执行 · Today</h2><p>任务、SOP、健康只在这里汇总，不互相复制，也不改变三个原页面。</p></div><span class="v9-execution-score">${doneCount}/${total} 已完成</span></div><div class="v9-execution-grid"><section class="v9-source"><header><strong>① 项目任务</strong><button type="button" onclick="navTo('workflow-section')">四象限 →</button></header><div class="v9-source-list">${executionTaskRows()}</div></section><section class="v9-source"><header><strong>② 今日 SOP</strong><button type="button" onclick="navTo('homebase-section')">SOP →</button></header><div class="v9-source-list">${executionRoutineRows()}</div></section><section class="v9-source"><header><strong>③ 健康底线</strong><button type="button" onclick="navTo('habit-section')">健康 →</button></header><div class="v9-source-list">${executionHealthRows()}</div></section></div><p class="v9-legacy-note">以前由“放入今天”生成的 SOP 任务仍保留在备份中，但不再重复显示在四象限和项目任务表。</p></section>`;
+  }
+  const priorPlan=renderPlan;
+  renderPlan=function(tab=state.v5Meta.planTab||'day'){priorPlan(tab);if(tab==='day'){const root=document.getElementById('planContent');root?.insertAdjacentHTML('afterbegin',executionMarkup())}};
+  if(currentSection==='plan-section')renderPlan('day');
 })();
 
 /* ---- preserved execution layer ---- */
