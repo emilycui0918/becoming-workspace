@@ -1786,10 +1786,14 @@ class Chart {
 #backupDock{position:fixed;top:18px;right:70px;z-index:46;display:flex;gap:8px}
 #backupDock button{min-height:36px;padding:7px 12px;border:1px solid #ddd6ca;border-radius:999px;background:rgba(255,253,249,.96);color:#37342f;font-weight:800;font-size:12px;box-shadow:0 4px 18px rgba(40,38,34,.08)}
 #backupDock button:last-child{background:#ff765d;color:#fff;border-color:#ff765d}
+.apple-calendar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.apple-calendar-actions button{white-space:nowrap}
+.apple-calendar-source{display:inline-flex;align-items:center;gap:5px;color:#7b756d;font-size:11px;font-weight:700}
+.apple-calendar-dot{width:7px;height:7px;border-radius:50%;background:#ff4f63;display:inline-block}
 @media(max-width:700px){#backupDock{top:auto;bottom:18px;left:72px;right:18px;justify-content:flex-end}#backupDock button{box-shadow:0 8px 25px rgba(40,38,34,.16)}}
 </style></head>
 <body class="font-sans text-calm-ink p-4 md:p-6 lg:p-8">
-  <div id="backupDock" aria-label="数据备份"><button type="button" onclick="exportJson()">↓ 导出 JSON</button><button type="button" onclick="document.getElementById('importFile').click()">↑ 导入 JSON</button></div><div id="cloudBar"><strong>BECOMING · Offline</strong><span id="cloudMessage" role="status">正在读取本机记录…</span><button id="reloadWorkspace">重新载入</button><button id="retrySave" hidden>重试保存</button><button id="exportUnsaved">下载 JSON 备份</button></div><div id="appLayout" inert class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-6">
+  <input id="appleCalendarFile" type="file" accept=".ics,text/calendar" hidden><div id="backupDock" aria-label="数据备份"><button type="button" onclick="exportJson()">↓ 导出 JSON</button><button type="button" onclick="document.getElementById('importFile').click()">↑ 导入 JSON</button></div><div id="cloudBar"><strong>BECOMING · Offline</strong><span id="cloudMessage" role="status">正在读取本机记录…</span><button id="reloadWorkspace">重新载入</button><button id="retrySave" hidden>重试保存</button><button id="exportUnsaved">下载 JSON 备份</button></div><div id="appLayout" inert class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-6">
     <aside id="sidebar" class="soft-card p-4 lg:sticky lg:top-6 h-fit">
       <div class="flex items-center gap-3 mb-4">
         <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-dopamine-orange to-dopamine-pink text-white flex items-center justify-center shadow-soft">
@@ -3827,6 +3831,7 @@ class Chart {
         return {
           attendance: normalizeAttendance(parsed.attendance),
           timeBlocks: parsed.timeBlocks && typeof parsed.timeBlocks === 'object' ? parsed.timeBlocks : {},
+          appleCalendar: parsed.appleCalendar && typeof parsed.appleCalendar === 'object' ? { events: Array.isArray(parsed.appleCalendar.events) ? parsed.appleCalendar.events : [], importedAt: String(parsed.appleCalendar.importedAt || ''), fileName: String(parsed.appleCalendar.fileName || '') } : { events:[], importedAt:'', fileName:'' },
           tasks: normalizeTasksState(parsed.tasks),
           projects: normalizeProjectsState(parsed.projects),
           focus: parsed.focus && typeof parsed.focus === 'object' ? { active: parsed.focus.active || null, sessions: Array.isArray(parsed.focus.sessions) ? parsed.focus.sessions : [] } : { active:null, sessions:[] },
@@ -6904,6 +6909,7 @@ class Chart {
         const next = {
           attendance: normalizeAttendance(parsed.attendance),
           timeBlocks: parsed.timeBlocks && typeof parsed.timeBlocks === 'object' ? parsed.timeBlocks : {},
+          appleCalendar: parsed.appleCalendar && typeof parsed.appleCalendar === 'object' ? { events: Array.isArray(parsed.appleCalendar.events) ? parsed.appleCalendar.events : [], importedAt: String(parsed.appleCalendar.importedAt || ''), fileName: String(parsed.appleCalendar.fileName || '') } : { events:[], importedAt:'', fileName:'' },
           tasks: normalizeTasksState(parsed.tasks),
           projects: normalizeProjectsState(parsed.projects),
           focus: parsed.focus && typeof parsed.focus === 'object' ? { active: parsed.focus.active || null, sessions: Array.isArray(parsed.focus.sessions) ? parsed.focus.sessions : [] } : { active:null, sessions:[] },
@@ -7558,6 +7564,117 @@ function editPointRule(id = '') { const rows = v5Rows('pointsRules'), old = rows
         return false; const item = { ...old, ...v, id: id || uid('point-rule'), points: Number(v.points || 0), active: v.active === 'true' }; state.pointsRules = id ? rows.map(x => x.id === id ? item : x) : [...rows, item]; v5Save(); }, onDelete: id ? () => v5Delete('pointsRules', id) : null }); }
 function addPoints(ruleId = '') { const rule = v5Rows('pointsRules').find(x => x.id === ruleId); openEditDialog({ title: '记录积分 · Add points', fields: [{ name: 'title', label: '活动 · Activity', value: rule?.title || '' }, { name: 'points', label: '积分 · Points', type: 'number', value: rule?.points ?? 10 }, { name: 'date', label: '日期 · Date', type: 'date', value: todayStr() }, { name: 'note', label: '证据 / 备注 · Evidence', type: 'textarea', value: '' }], onSave: v => { if (!v.title.trim())
         return false; state.pointsLog.unshift({ ...v, id: uid('point-log'), points: Number(v.points || 0) }); v5Save(); } }); }
+
+function ensureAppleCalendarState() {
+  if (!state.appleCalendar || typeof state.appleCalendar !== 'object') state.appleCalendar = { events:[], importedAt:'', fileName:'' };
+  if (!Array.isArray(state.appleCalendar.events)) state.appleCalendar.events = [];
+  return state.appleCalendar;
+}
+function appleUnescape(value='') {
+  return String(value).replace(/\\n/gi, '\n').replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\\\/g, '\\').trim();
+}
+function applePad(value) { return String(value).padStart(2, '0'); }
+function appleDateKey(date) { return date.getFullYear() + '-' + applePad(date.getMonth() + 1) + '-' + applePad(date.getDate()); }
+function appleTime(date) { return applePad(date.getHours()) + ':' + applePad(date.getMinutes()); }
+function appleZonedDate(parts, timeZone) {
+  if (!timeZone) return new Date(parts.y, parts.m - 1, parts.d, parts.h || 0, parts.mi || 0, parts.s || 0);
+  try {
+    let guess = Date.UTC(parts.y, parts.m - 1, parts.d, parts.h || 0, parts.mi || 0, parts.s || 0);
+    const formatter = new Intl.DateTimeFormat('en-CA', { timeZone, hourCycle:'h23', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    for (let pass = 0; pass < 2; pass++) {
+      const found = Object.fromEntries(formatter.formatToParts(new Date(guess)).filter(x => x.type !== 'literal').map(x => [x.type, Number(x.value)]));
+      const shown = Date.UTC(found.year, found.month - 1, found.day, found.hour === 24 ? 0 : found.hour, found.minute, found.second);
+      guess += Date.UTC(parts.y, parts.m - 1, parts.d, parts.h || 0, parts.mi || 0, parts.s || 0) - shown;
+    }
+    return new Date(guess);
+  } catch (_) { return new Date(parts.y, parts.m - 1, parts.d, parts.h || 0, parts.mi || 0, parts.s || 0); }
+}
+function parseAppleDate(value='', params={}) {
+  const raw = String(value).trim();
+  const match = raw.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?)?(Z)?$/);
+  if (!match) return null;
+  const parts = { y:+match[1], m:+match[2], d:+match[3], h:+(match[4] || 0), mi:+(match[5] || 0), s:+(match[6] || 0) };
+  const allDay = !match[4] || String(params.VALUE || '').toUpperCase() === 'DATE';
+  const date = match[7] ? new Date(Date.UTC(parts.y, parts.m - 1, parts.d, parts.h, parts.mi, parts.s)) : appleZonedDate(parts, params.TZID || '');
+  return { date, allDay, parts, timeZone:params.TZID || '' };
+}
+function parseAppleProperty(line) {
+  const cut = line.indexOf(':'); if (cut < 0) return null;
+  const left = line.slice(0, cut).split(';'), name = left.shift().toUpperCase(), params = {};
+  left.forEach(part => { const i = part.indexOf('='); if (i > 0) params[part.slice(0, i).toUpperCase()] = part.slice(i + 1).replace(/^"|"$/g, ''); });
+  return { name, params, value:line.slice(cut + 1) };
+}
+function appleRrule(rule='') { return Object.fromEntries(String(rule).split(';').map(x => x.split('=')).filter(x => x.length === 2).map(([k,v]) => [k.toUpperCase(), v])); }
+function appleSynthetic(parts) { return new Date(parts.y, parts.m - 1, parts.d, parts.h || 0, parts.mi || 0, parts.s || 0); }
+function appleParts(date) { return { y:date.getFullYear(), m:date.getMonth()+1, d:date.getDate(), h:date.getHours(), mi:date.getMinutes(), s:date.getSeconds() }; }
+function expandAppleEvent(raw, minDate, maxDate) {
+  const startInfo = parseAppleDate(raw.DTSTART?.value, raw.DTSTART?.params || {}); if (!startInfo) return [];
+  const endInfo = parseAppleDate(raw.DTEND?.value, raw.DTEND?.params || {});
+  const start = startInfo.date, fallbackMs = startInfo.allDay ? 86400000 : 3600000;
+  const duration = Math.max(0, (endInfo?.date?.getTime() || start.getTime() + fallbackMs) - start.getTime());
+  const make = (date, index=0) => ({ id:'apple_' + (raw.UID || 'event') + '_' + date.getTime() + '_' + index, uid:raw.UID || '', title:appleUnescape(raw.SUMMARY || '未命名日程'), startIso:date.toISOString(), endIso:new Date(date.getTime() + duration).toISOString(), allDay:startInfo.allDay, location:appleUnescape(raw.LOCATION || ''), notes:appleUnescape(raw.DESCRIPTION || ''), url:appleUnescape(raw.URL || ''), source:'apple-calendar' });
+  if (!raw.RRULE) return [make(start)];
+  const rule = appleRrule(raw.RRULE), freq = rule.FREQ, interval = Math.max(1, Number(rule.INTERVAL || 1)), count = Math.min(5000, Math.max(1, Number(rule.COUNT || 5000)));
+  const untilInfo = rule.UNTIL ? parseAppleDate(rule.UNTIL, {}) : null, until = untilInfo?.date || maxDate;
+  const excluded = new Set((raw.EXDATE || []).flatMap(item => String(item.value || '').split(',')).map(value => parseAppleDate(value, {})?.date?.getTime()).filter(Boolean));
+  const results = [], seed = appleSynthetic(startInfo.parts), byDays = String(rule.BYDAY || '').split(',').filter(Boolean).map(x => x.replace(/^[-+]?\d+/, '')).map(x => ({SU:0,MO:1,TU:2,WE:3,TH:4,FR:5,SA:6})[x]).filter(x => x !== undefined);
+  let generated = 0;
+  if (freq === 'WEEKLY' && byDays.length) {
+    const cursor = new Date(seed); cursor.setDate(cursor.getDate() - ((cursor.getDay() + 6) % 7));
+    for (let week=0; generated<count && cursor<=until && cursor<=maxDate; week+=interval) {
+      for (const weekday of byDays) { const occurrence = new Date(cursor); occurrence.setDate(cursor.getDate() + ((weekday + 6) % 7) + week * 7); if (occurrence < seed || occurrence > until || occurrence > maxDate) continue; generated++; const actual = appleZonedDate(appleParts(occurrence), startInfo.timeZone); if (actual >= minDate && !excluded.has(actual.getTime())) results.push(make(actual, generated)); if (generated >= count) break; }
+    }
+  } else {
+    for (let i=0; generated<count; i++) {
+      const occurrence = new Date(seed);
+      if (freq === 'DAILY') occurrence.setDate(seed.getDate() + i * interval);
+      else if (freq === 'WEEKLY') occurrence.setDate(seed.getDate() + i * 7 * interval);
+      else if (freq === 'MONTHLY') occurrence.setMonth(seed.getMonth() + i * interval);
+      else if (freq === 'YEARLY') occurrence.setFullYear(seed.getFullYear() + i * interval);
+      else break;
+      const actual = appleZonedDate(appleParts(occurrence), startInfo.timeZone); if (actual > until || actual > maxDate) break;
+      generated++; if (actual >= minDate && !excluded.has(actual.getTime())) results.push(make(actual, generated));
+    }
+  }
+  return results;
+}
+function parseAppleCalendar(text) {
+  const lines = String(text).replace(/\r?\n[ \t]/g, '').split(/\r?\n/), rows = []; let current = null;
+  for (const line of lines) {
+    if (line === 'BEGIN:VEVENT') { current = { EXDATE:[] }; continue; }
+    if (line === 'END:VEVENT') { if (current) rows.push(current); current = null; continue; }
+    if (!current) continue; const prop = parseAppleProperty(line); if (!prop) continue;
+    if (prop.name === 'EXDATE') current.EXDATE.push(prop); else if (['DTSTART','DTEND'].includes(prop.name)) current[prop.name] = prop; else current[prop.name] = prop.value;
+  }
+  const now = new Date(), min = new Date(now.getFullYear()-1, 0, 1), max = new Date(now.getFullYear()+3, 11, 31, 23, 59, 59);
+  const exceptionRows = rows.filter(x => x['RECURRENCE-ID']);
+  const exceptionKeys = new Set(exceptionRows.map(x => { const d = parseAppleDate(x['RECURRENCE-ID'], {})?.date; return String(x.UID || '') + '|' + (d ? d.getTime() : ''); }));
+  const events = rows.filter(x => !x['RECURRENCE-ID']).flatMap(x => expandAppleEvent(x, min, max)).filter(x => !exceptionKeys.has(String(x.uid || '') + '|' + new Date(x.startIso).getTime()));
+  exceptionRows.filter(x => String(x.STATUS || '').toUpperCase() !== 'CANCELLED').forEach(x => events.push(...expandAppleEvent(x, min, max)));
+  return events.sort((a,b) => a.startIso.localeCompare(b.startIso));
+}
+function appleEventsForDate(date=todayStr()) {
+  const calendar = ensureAppleCalendarState();
+  return calendar.events.filter(item => {
+    const start = new Date(item.startIso), end = new Date(item.endIso); if (!Number.isFinite(start.getTime())) return false;
+    const startKey = appleDateKey(start), endKey = appleDateKey(new Date(Math.max(start.getTime(), end.getTime() - 1)));
+    return date >= startKey && date <= endKey;
+  }).map(item => { const start = new Date(item.startIso), end = new Date(item.endIso), startsToday = appleDateKey(start) === date; return { ...item, start:item.allDay ? '全天' : (startsToday ? appleTime(start) : '00:00'), end:item.allDay ? '' : appleTime(end), color:'#ff4f63' }; });
+}
+function combinedScheduleBlocks(date=todayStr()) { return [...getDayTimeBlocks(date), ...appleEventsForDate(date)].sort((a,b) => (a.start === '全天' ? '00:00' : a.start || '').localeCompare(b.start === '全天' ? '00:00' : b.start || '')); }
+function scheduleWhen(item) { const time = item.allDay || !item.end ? (item.start || '全天') : (item.start || '') + '–' + item.end; return time + (item.location ? ' · ' + item.location : ''); }
+function appleCalendarControls() {
+  const c = ensureAppleCalendarState(), detail = c.events.length ? '<span class="apple-calendar-source"><i class="apple-calendar-dot"></i>' + c.events.length + ' events</span>' : '';
+  return '<div class="apple-calendar-actions">' + detail + '<button type="button" onclick="openAppleCalendarImport()">' + (c.events.length ? '更新 Apple Calendar' : '导入 Apple Calendar') + '</button>' + (c.events.length ? '<button type="button" onclick="clearAppleCalendar()">清除</button>' : '') + '</div>';
+}
+function openAppleCalendarImport() { const input = $('appleCalendarFile'); input.value = ''; input.click(); }
+async function importAppleCalendarFile(file) {
+  if (!file) return; const text = await file.text(); if (!/BEGIN:VCALENDAR/i.test(text)) return alert('这不是 Apple 日历导出的 .ics 文件。');
+  try { const events = parseAppleCalendar(text); if (!events.length) return alert('没有在文件中找到可显示的日历事件。'); state.appleCalendar = { events, importedAt:nowDateTime(), fileName:file.name }; saveState(); renderAll(); renderV5Home(); if (currentSection === 'plan-section') renderPlan('day'); alert('已导入 ' + events.length + ' 个日历事件。内容只保存在此浏览器。'); }
+  catch (error) { console.error(error); alert('日历导入失败：' + (error?.message || '请重新从 Apple 日历导出 .ics 文件')); }
+}
+function clearAppleCalendar() { if (!confirm('只清除网页中导入的 Apple 日历事件吗？Apple 日历本身不会受影响。')) return; state.appleCalendar = { events:[], importedAt:'', fileName:'' }; saveState(); renderAll(); renderV5Home(); if (currentSection === 'plan-section') renderPlan('day'); }
+
 function renderPlan(tab = state.v5Meta.planTab || 'day') {
     ensureV5State();
     state.v5Meta.planTab = tab;
@@ -7580,9 +7697,9 @@ function renderPlan(tab = state.v5Meta.planTab || 'day') {
     let primary = '';
     if (tab === 'day') {
         const tasks = state.tasks.filter(taskOpen).filter(t => t.todayBucket || t.dueDate === todayStr() || t.status === 'active').slice(0, 3);
-        const blocks = getDayTimeBlocks(todayStr()).slice().sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+        const blocks = combinedScheduleBlocks(todayStr());
         const anchors = routineRows().filter(x => x.active !== false && x.cadence === 'daily').slice(0, 8);
-        primary = `<div class="v5-split"><div><div class="section-head"><div><h2>Must Do</h2><p>今天最重要的三件事。</p></div><button onclick="navTo('workflow-section')">管理任务 →</button></div>${v5List(tasks, (x, i) => `<div class="v5-list-row"><div><h3>${i + 1}. ${v5Title(x.title)}</h3><p>${v5Title(projectById(x.projectId)?.title || x.context || 'Today')} ${x.estimate ? `· ${x.estimate} min` : ''}</p></div><button onclick="openWorkflowTaskEditor('${x.id}')">编辑</button></div>`, '今天还没有 Must Do。', '＋ 添加一项', 'editPlanItem(\'\',\'day\')')}<div class="section-head v5-top-space"><div><h2>日程 · Schedule</h2></div></div>${v5List(blocks, x => `<div class="v5-list-row"><div><h3>${v5Title(x.title)}</h3><p>${v5Title(x.start)}–${v5Title(x.end)}</p></div></div>`, '今天还没有排时间块。')}</div><aside><div class="section-head"><div><h2>Routine Anchors</h2><p>可放进今天，也可以今天跳过。</p></div></div>${v5List(anchors, x => `<div class="v5-list-row"><div><h3>${v5Title(x.title)}</h3><p>${v5Title(x.when)} · ${v5Title(x.minutes)} min</p></div><button onclick="routineToTask('${x.id}')">＋ Today</button></div>`)}</aside></div>`;
+        primary = `<div class="v5-split"><div><div class="section-head"><div><h2>Must Do</h2><p>今天最重要的三件事。</p></div><button onclick="navTo('workflow-section')">管理任务 →</button></div>${v5List(tasks, (x, i) => `<div class="v5-list-row"><div><h3>${i + 1}. ${v5Title(x.title)}</h3><p>${v5Title(projectById(x.projectId)?.title || x.context || 'Today')} ${x.estimate ? `· ${x.estimate} min` : ''}</p></div><button onclick="openWorkflowTaskEditor('${x.id}')">编辑</button></div>`, '今天还没有 Must Do。', '＋ 添加一项', 'editPlanItem(\'\',\'day\')')}<div class="section-head v5-top-space"><div><h2>日程 · Schedule</h2></div>${appleCalendarControls()}</div>${v5List(blocks, x => `<div class="v5-list-row"><div><h3>${v5Title(x.title)}</h3><p>${v5Title(scheduleWhen(x))}</p></div></div>`, '今天还没有排时间块。')}</div><aside><div class="section-head"><div><h2>Routine Anchors</h2><p>可放进今天，也可以今天跳过。</p></div></div>${v5List(anchors, x => `<div class="v5-list-row"><div><h3>${v5Title(x.title)}</h3><p>${v5Title(x.when)} · ${v5Title(x.minutes)} min</p></div><button onclick="routineToTask('${x.id}')">＋ Today</button></div>`)}</aside></div>`;
     }
     else {
         primary = `<div class="section-head"><div><h2>${labels[tab][0]}</h2><p>${labels[tab][1]}</p></div><button class="btn-main" onclick="editPlanItem('', '${tab}')">＋ New</button></div>${v5List(scoped, x => `<div class="v5-list-row"><div><h3>${v5Title(x.title)}</h3><p>${v5Title(x.area)}${x.date ? ` · ${v5Title(x.date)}` : ''} · ${v5Title(x.notes)}</p></div><button onclick="editPlanItem('${x.id}')">编辑 · Edit</button></div>`, '这里保持空白，直到你决定本阶段真正重要的结果。')}${tab === 'month' ? `<div class="section-head v5-top-space"><div><h2>Not This Month</h2><p>值得做，但现在不启动。</p></div><button onclick="editPlanItem('', 'not-month')">＋ Add</button></div>${v5List(items.filter(x => x.scope === 'not-month'), x => `<div class="v5-list-row"><div><h3>${v5Title(x.title)}</h3><p>${v5Title(x.area)} · ${v5Title(x.notes)}</p></div><button onclick="editPlanItem('${x.id}')">编辑</button></div>`, '目前没有刻意暂停的方向。')}` : ''}`;
@@ -7653,7 +7770,7 @@ function editApplication(id = '') { const rows = v5Rows('applications'), old = r
     function saveCaptureFromDialog(e) { e?.preventDefault(); const text = $('captureText').value.trim(); if (!text)
         return; v5Rows('inbox').unshift({ id: uid('capture'), type: $('captureType').value, text, url: $('captureUrl').value.trim(), status: 'inbox', createdAt: nowDateTime() }); saveState(); $('captureDialog').close(); renderV5Home(); }
     function renderV5Home() { const root = $('v5Home'); if (!root)
-        return; ensureV5State(); const tasks = state.tasks.filter(taskOpen).filter(t => t.status === 'active' || t.todayBucket || t.dueDate === todayStr()).slice(0, 3); const blocks = getDayTimeBlocks(todayStr()).slice().sort((a, b) => (a.start || '').localeCompare(b.start || '')); const week = v5Rows('planItems').filter(x => x.scope === 'week' && x.status !== 'done').slice(0, 3); const reminders = [...v5Rows('inbox').filter(x => x.status === 'inbox').slice(0, 2).map(x => x.text), ...inventoryRows().filter(x => Number(x.quantity) <= Number(x.threshold)).slice(0, 2).map(x => '补货：' + x.title)].slice(0, 4); root.innerHTML = `<div class="home-greeting"><p class="eyebrow">${v5Title(v5DateLabel())}</p><h1>${new Date().getHours() < 12 ? '早上好' : '欢迎回来'}，今天只先看最重要的事。</h1><p>What matters today?</p></div><div class="home-layout"><div><section class="quiet-section"><div class="quiet-section-title"><h2>今天 · Today</h2><button onclick="navTo('plan-section')">打开计划 →</button></div><ol class="priority-list">${tasks.length ? tasks.map((x, i) => `<li class="priority-item"><span class="priority-index">0${i + 1}</span><div><strong>${v5Title(x.title)}</strong><small>${v5Title(projectById(x.projectId)?.title || x.context || 'Today')}${x.estimate ? ` · ${x.estimate} min` : ''}${x.dueDate ? ` · ${v5Title(x.dueDate)}` : ''}</small></div><button onclick="openWorkflowTaskEditor('${x.id}')">Edit</button></li>`).join('') : `<li class="priority-item"><span class="priority-index">01</span><div><strong>选择今天第一件真正重要的事</strong><small>最多放 3 项，其他内容留在 Plan。</small></div><button onclick="navTo('workflow-section')">＋ Add</button></li>`}</ol></section><section class="quiet-section"><div class="quiet-section-title"><h2>今日日程 · Today’s Schedule</h2></div>${blocks.length ? `<div class="timeline-list">${blocks.map(x => `<div class="timeline-item"><time>${v5Title(x.start)}</time><div><strong>${v5Title(x.title)}</strong><small>${v5Title(x.end)}</small></div></div>`).join('')}</div>` : v5Empty('还没有时间块；需要时再安排，不必先填满整天。')}</section><section class="quiet-section"><div class="quiet-section-title"><h2>本周 · This Week</h2><button onclick="renderPlan('week');navTo('plan-section')">规划本周 →</button></div><ul class="quiet-list">${week.length ? week.map(x => `<li><strong>${v5Title(x.title)}</strong><span>${v5Title(x.area)}</span></li>`).join('') : '<li><strong>尚未设定 3 个 Must-win</strong><span>Week</span></li>'}</ul></section></div><aside><section class="quiet-section"><div class="quiet-section-title"><h2>别忘了 · Don’t Forget</h2><button onclick="showInbox()">Inbox ${v5Rows('inbox').filter(x => x.status === 'inbox').length}</button></div><ul class="quiet-list">${reminders.length ? reminders.map(x => `<li><span>${v5Title(x)}</span></li>`).join('') : '<li><span>目前没有紧急提醒。</span></li>'}</ul></section><section class="quiet-section"><div class="quiet-section-title"><h2>快速进入 · Quick Access</h2></div><div class="quick-grid">${[['项目', 'Projects', 'workflow-section'], ['大学', 'University', 'university-section'], ['申请', 'Applications', 'applications-section'], ['知识', 'Knowledge', 'study-section'], ['健康', 'Health', 'habit-section'], ['厨房', 'Kitchen', 'recipe-section'], ['风格', 'Style', 'style-section'], ['复盘', 'Review', 'review-section']].map(x => `<button class="quick-link" onclick="navTo('${x[2]}')">${x[0]}<span>${x[1]}</span></button>`).join('')}</div></section></aside></div>`; }
+        return; ensureV5State(); const tasks = state.tasks.filter(taskOpen).filter(t => t.status === 'active' || t.todayBucket || t.dueDate === todayStr()).slice(0, 3); const blocks = combinedScheduleBlocks(todayStr()); const week = v5Rows('planItems').filter(x => x.scope === 'week' && x.status !== 'done').slice(0, 3); const reminders = [...v5Rows('inbox').filter(x => x.status === 'inbox').slice(0, 2).map(x => x.text), ...inventoryRows().filter(x => Number(x.quantity) <= Number(x.threshold)).slice(0, 2).map(x => '补货：' + x.title)].slice(0, 4); root.innerHTML = `<div class="home-greeting"><p class="eyebrow">${v5Title(v5DateLabel())}</p><h1>${new Date().getHours() < 12 ? '早上好' : '欢迎回来'}，今天只先看最重要的事。</h1><p>What matters today?</p></div><div class="home-layout"><div><section class="quiet-section"><div class="quiet-section-title"><h2>今天 · Today</h2><button onclick="navTo('plan-section')">打开计划 →</button></div><ol class="priority-list">${tasks.length ? tasks.map((x, i) => `<li class="priority-item"><span class="priority-index">0${i + 1}</span><div><strong>${v5Title(x.title)}</strong><small>${v5Title(projectById(x.projectId)?.title || x.context || 'Today')}${x.estimate ? ` · ${x.estimate} min` : ''}${x.dueDate ? ` · ${v5Title(x.dueDate)}` : ''}</small></div><button onclick="openWorkflowTaskEditor('${x.id}')">Edit</button></li>`).join('') : `<li class="priority-item"><span class="priority-index">01</span><div><strong>选择今天第一件真正重要的事</strong><small>最多放 3 项，其他内容留在 Plan。</small></div><button onclick="navTo('workflow-section')">＋ Add</button></li>`}</ol></section><section class="quiet-section"><div class="quiet-section-title"><h2>今日日程 · Today’s Schedule</h2>${appleCalendarControls()}</div>${blocks.length ? `<div class="timeline-list">${blocks.map(x => `<div class="timeline-item"><time>${v5Title(x.start)}</time><div><strong>${v5Title(x.title)}</strong><small>${v5Title(scheduleWhen(x))}</small></div></div>`).join('')}</div>` : v5Empty('还没有时间块；需要时再安排，不必先填满整天。')}</section><section class="quiet-section"><div class="quiet-section-title"><h2>本周 · This Week</h2><button onclick="renderPlan('week');navTo('plan-section')">规划本周 →</button></div><ul class="quiet-list">${week.length ? week.map(x => `<li><strong>${v5Title(x.title)}</strong><span>${v5Title(x.area)}</span></li>`).join('') : '<li><strong>尚未设定 3 个 Must-win</strong><span>Week</span></li>'}</ul></section></div><aside><section class="quiet-section"><div class="quiet-section-title"><h2>别忘了 · Don’t Forget</h2><button onclick="showInbox()">Inbox ${v5Rows('inbox').filter(x => x.status === 'inbox').length}</button></div><ul class="quiet-list">${reminders.length ? reminders.map(x => `<li><span>${v5Title(x)}</span></li>`).join('') : '<li><span>目前没有紧急提醒。</span></li>'}</ul></section><section class="quiet-section"><div class="quiet-section-title"><h2>快速进入 · Quick Access</h2></div><div class="quick-grid">${[['项目', 'Projects', 'workflow-section'], ['大学', 'University', 'university-section'], ['申请', 'Applications', 'applications-section'], ['知识', 'Knowledge', 'study-section'], ['健康', 'Health', 'habit-section'], ['厨房', 'Kitchen', 'recipe-section'], ['风格', 'Style', 'style-section'], ['复盘', 'Review', 'review-section']].map(x => `<button class="quick-link" onclick="navTo('${x[2]}')">${x[0]}<span>${x[1]}</span></button>`).join('')}</div></section></aside></div>`; }
     function showInbox() { const rows = v5Rows('inbox').filter(x => x.status !== 'archived'); openEditDialog({ title: `Inbox · ${rows.length} items`, desc: '逐条处理、归类或归档。Weekly Review 会提醒你清理这里。', fields: [], onSave: () => { closeEditDialog(); } }); $('editDialogBody').innerHTML = rows.length ? `<div class="v5-list">${rows.map(x => `<div class="v5-list-row"><div><h3>${v5Title(x.text)}</h3><p>${v5Title(x.type)} · ${v5Title(x.createdAt)}</p></div><button onclick="closeEditDialog();editCapture('${x.id}')">Edit</button></div>`).join('')}</div>` : v5Empty('Inbox is clear.'); }
     function globalSearchData() { const items = []; const add = (type, rows, title, body, route, edit) => rows.forEach(x => items.push({ type, title: title(x), body: body(x), route, edit: edit?.(x) })); add('Task', state.tasks, x => x.title, x => x.note || x.context, 'workflow-section', x => `openWorkflowTaskEditor('${x.id}')`); add('Project', state.projects, x => x.title, x => x.outcome || '', 'workflow-section'); add('Knowledge', studyAreas(), x => x.name, x => x.now + ' ' + x.entry, 'study-section', x => `editStudyArea('${x.id}')`); add('Book', books(), x => x.title, x => x.author + ' ' + x.why, 'study-section', x => `editBook('${x.id}')`); add('Application', v5Rows('applications'), x => x.university + ' ' + x.programme, x => x.next + ' ' + x.waiting, 'applications-section', x => `editApplication('${x.id}')`); add('SOP', routineRows(), x => x.title, x => x.notes, 'homebase-section', x => `editRoutine('${x.id}')`); add('Recipe', recipeRows(), x => x.name, x => x.ingredients + ' ' + x.notes, 'recipe-section', x => `editRecipe('${x.id}')`); add('Travel', state.trips || [], x => x.title || x.place, x => x.summary || x.judgement || '', 'studio-section'); add('Portfolio', state.portfolio || [], x => x.title, x => x.summary || x.judgement || '', 'studio-section'); add('Journal', state.journal || [], x => x.title, x => x.summary || x.judgement || '', 'studio-section'); add('Inbox', v5Rows('inbox'), x => x.text, x => x.type, 'home-section', x => `editCapture('${x.id}')`); return items; }
     function openGlobalSearch() { const d = $('searchDialog'); $('globalSearchInput').value = ''; $('globalSearchResults').innerHTML = v5Empty('输入一个词，搜索整个 Becoming。'); d.showModal(); setTimeout(() => $('globalSearchInput').focus(), 50); }
@@ -7698,7 +7815,7 @@ function editApplication(id = '') { const rows = v5Rows('applications'), old = r
     } }); }
     function bilingualiseHeadings() { const map = { '项目看板': '项目 · Projects', '本科毕业论文进度': '本科论文 · Dissertation', '投稿管理': '投稿 · Submissions', '健康管理': '健康 · Health', '心灵关怀': '心灵关怀 · Care', '导师与 PAT 沟通': '导师与 PAT · Supervision', '每日复盘': '每日复盘 · Daily Review', '成就殿堂': '成就 · Achievements', '数据看板': '趋势 · Analytics', '数据看板设置 / 数据管理': '数据设置 · Data Settings', '生活与本科事务': '生活事务 · Life Admin', '作品与生活档案': '个人档案 · Personal Archive', 'My System': '个人系统 · My System', '菜谱索引': '厨房 · Kitchen', '英语学习打卡': '英语 · English', 'Study System': '我的知识 · My Knowledge', 'Daily Briefing Desk': '每日简报 · Daily Briefing' }; document.querySelectorAll('main h1').forEach(h => { const k = h.textContent.trim(); if (map[k])
         h.textContent = map[k]; }); }
-    function prepareV5UI() { ensureV5State(); rebuildSidebar(); prepareUtility(); bilingualiseHeadings(); const main = document.querySelector('main'); const sub = document.createElement('div'); sub.id = 'systemSubnav'; sub.className = 'system-subnav'; main.prepend(sub); const home = $('home-section'); const v = document.createElement('div'); v.id = 'v5Home'; home.prepend(v); const fab = document.createElement('button'); fab.className = 'capture-fab'; fab.textContent = '＋ 收集 · Capture'; fab.onclick = openCapture; document.body.appendChild(fab); document.querySelectorAll('[data-plan-tab]').forEach(b => b.onclick = () => renderPlan(b.dataset.planTab)); document.querySelectorAll('[data-university-tab]').forEach(b => b.onclick = () => renderUniversity(b.dataset.universityTab)); document.querySelectorAll('[data-university-route]').forEach(b => b.onclick = () => navTo(b.dataset.universityRoute)); document.querySelectorAll('[data-application-tab]').forEach(b => b.onclick = () => renderApplications(b.dataset.applicationTab)); document.querySelectorAll('[data-application-route]').forEach(b => b.onclick = () => navTo(b.dataset.applicationRoute)); document.querySelectorAll('[data-style-tab]').forEach(b => b.onclick = () => renderStyle(b.dataset.styleTab)); document.querySelectorAll('[data-money-tab]').forEach(b => b.onclick = () => renderMoney(b.dataset.moneyTab)); $('saveCapture').onclick = saveCaptureFromDialog; $('globalSearchInput').oninput = renderGlobalSearch; collapseLegacyBuilders(); renderV5Home(); renderSystemSubnav('home-section'); }
+    function prepareV5UI() { ensureV5State(); ensureAppleCalendarState(); $('appleCalendarFile').onchange = event => importAppleCalendarFile(event.target.files?.[0]); rebuildSidebar(); prepareUtility(); bilingualiseHeadings(); const main = document.querySelector('main'); const sub = document.createElement('div'); sub.id = 'systemSubnav'; sub.className = 'system-subnav'; main.prepend(sub); const home = $('home-section'); const v = document.createElement('div'); v.id = 'v5Home'; home.prepend(v); const fab = document.createElement('button'); fab.className = 'capture-fab'; fab.textContent = '＋ 收集 · Capture'; fab.onclick = openCapture; document.body.appendChild(fab); document.querySelectorAll('[data-plan-tab]').forEach(b => b.onclick = () => renderPlan(b.dataset.planTab)); document.querySelectorAll('[data-university-tab]').forEach(b => b.onclick = () => renderUniversity(b.dataset.universityTab)); document.querySelectorAll('[data-university-route]').forEach(b => b.onclick = () => navTo(b.dataset.universityRoute)); document.querySelectorAll('[data-application-tab]').forEach(b => b.onclick = () => renderApplications(b.dataset.applicationTab)); document.querySelectorAll('[data-application-route]').forEach(b => b.onclick = () => navTo(b.dataset.applicationRoute)); document.querySelectorAll('[data-style-tab]').forEach(b => b.onclick = () => renderStyle(b.dataset.styleTab)); document.querySelectorAll('[data-money-tab]').forEach(b => b.onclick = () => renderMoney(b.dataset.moneyTab)); $('saveCapture').onclick = saveCaptureFromDialog; $('globalSearchInput').oninput = renderGlobalSearch; collapseLegacyBuilders(); renderV5Home(); renderSystemSubnav('home-section'); }
     const v4Nav = navTo;
     navTo = function (id) { v4Nav(id); renderSystemSubnav(id); renderV5Current(); if (id === 'home-section')
         renderV5Home(); };
