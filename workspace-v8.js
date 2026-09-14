@@ -1762,7 +1762,7 @@ function validateImportIds(value){if(!value||typeof value!=="object")return;for(
         return {
           title: '投稿与发表管线',
           outcome: `推进 ${active.length} 个进行中投稿，优先处理临近截止与返修`,
-          area: 'submission',
+          area: 'writing',
           deadline: nearestSubmissionDeadline(),
           note: 'module:submission',
           taskTitle: next ? `推进投稿：${next.title}` : '检查投稿管线：补充下一步动作',
@@ -1774,7 +1774,7 @@ function validateImportIds(value){if(!value||typeof value!=="object")return;for(
       return {
         title: '导师沟通与承诺跟进',
         outcome: `记录导师说过的话、跟进 ${pending.length} 条未落实承诺，避免计划漂移`,
-        area: 'admin',
+        area: 'writing',
         deadline: next?.entry?.followupDate || '',
         note: 'module:mentor',
         taskTitle: next ? `跟进导师承诺：${next.entry.commitment.slice(0, 32)}` : '整理导师沟通记录并确认下一步',
@@ -3179,7 +3179,7 @@ function validateImportIds(value){if(!value||typeof value!=="object")return;for(
       const patch = {
         title: item.title,
         outcome: `${item.stage}${item.venue ? ` · ${item.venue}` : ''}${item.notes ? ` · ${item.notes}` : ''}`,
-        area: 'submission',
+        area: 'writing',
         status: submissionProjectStatus(item),
         startDate: item.startDate || dateFromDateTime(item.createdAt) || todayStr(),
         deadline: item.deadline || '',
