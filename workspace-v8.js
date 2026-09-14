@@ -294,7 +294,7 @@ function validateImportIds(value){if(!value||typeof value!=="object")return;for(
       return TASK_STATUS_OPTIONS.find(item => item.value === status) || TASK_STATUS_OPTIONS[1];
     }
     function projectAreaMeta(area) {
-      return PROJECT_AREAS.find(item => item.value === area) || PROJECT_AREAS[0];
+      return PROJECT_AREAS.find(item => item.value === area) || { value:String(area || 'writing'), label:String(area || '写作 / 论文') };
     }
     function projectStatusMeta(status) {
       return PROJECT_STATUS_OPTIONS.find(item => item.value === status) || PROJECT_STATUS_OPTIONS[0];
@@ -357,7 +357,7 @@ function validateImportIds(value){if(!value||typeof value!=="object")return;for(
       if (!item || item.title == null) return null;
       const title = String(item.title || '').trim();
       if (!title) return null;
-      const area = 'writing';
+      const area = String(item.area || 'writing');
       const status = PROJECT_STATUS_OPTIONS.some(opt => opt.value === item.status) ? item.status : 'active';
       return {
         id: String(item.id || uid('proj')),
@@ -4826,6 +4826,32 @@ function editApplication(id = '') { const rows = v5Rows('applications'), old = r
       if (typeof navTo === 'function') navTo('study-section');
     };
   });
+})();
+
+/* V10: user-managed project categories. */
+(function(){
+  function projectCategoryRows(){
+    state.v5Meta=state.v5Meta&&typeof state.v5Meta==='object'?state.v5Meta:{};
+    const saved=Array.isArray(state.v5Meta.projectCategories)?state.v5Meta.projectCategories:[];
+    const combined=[{value:'writing',label:'写作 / 论文'},...saved];
+    const seen=new Set(),rows=combined.filter(x=>x&&x.value&&!seen.has(x.value)&&seen.add(x.value)).map(x=>({value:String(x.value),label:String(x.label||x.value)}));
+    state.v5Meta.projectCategories=rows;
+    PROJECT_AREAS.splice(0,PROJECT_AREAS.length,...rows);
+    const allowed=new Set(rows.map(x=>x.value));state.projects.forEach(p=>{if(!allowed.has(p.area))p.area='writing';});
+    return rows;
+  }
+  function saveProjectCategories(){state.v5Meta.projectCategories=PROJECT_AREAS.map(x=>({...x}));saveState();}
+  function refreshProjectCategorySelect(){const select=document.getElementById('workflowProjectArea');if(!select)return;const current=select.value;select.innerHTML=PROJECT_AREAS.map(x=>`<option value="${v5Title(x.value)}">${v5Title(x.label)}</option>`).join('');select.value=PROJECT_AREAS.some(x=>x.value===current)?current:PROJECT_AREAS[0]?.value||'writing';}
+  function managerDialog(){let d=document.getElementById('v10ProjectCategoryDialog');if(!d){d=document.createElement('dialog');d.id='v10ProjectCategoryDialog';d.className='v8-dialog';document.body.appendChild(d)}return d;}
+  window.openProjectCategoryManager=function(){projectCategoryRows();const d=managerDialog();d.innerHTML=`<div class="v8-dialog-inner"><h2>项目分类 · Categories</h2><p>分类由你自己管理。重命名不会影响项目、任务、日志或截止日期。</p><div class="v8-dialog-list">${PROJECT_AREAS.map((x,i)=>`<div class="v8-dialog-row"><strong>${v5Title(x.label)}</strong><span><button type="button" onclick="renameProjectCategory(${i})">重命名</button>${PROJECT_AREAS.length>1?` <button type="button" onclick="deleteProjectCategory(${i})">删除</button>`:''}</span></div>`).join('')}</div><div class="v8-dialog-actions"><button type="button" onclick="this.closest('dialog').close()">关闭</button><button type="button" class="primary" onclick="addProjectCategory()">＋ 新增分类</button></div></div>`;if(!d.open)d.showModal();};
+  window.addProjectCategory=function(){const label=prompt('新分类名称，例如：申请文书、课程论文、个人项目');if(!label?.trim())return;const clean=label.trim();if(PROJECT_AREAS.some(x=>x.label.toLowerCase()===clean.toLowerCase()))return alert('这个分类已经存在。');PROJECT_AREAS.push({value:'category_'+Date.now().toString(36),label:clean});saveProjectCategories();refreshProjectCategorySelect();openProjectCategoryManager();renderWorkflow();};
+  window.renameProjectCategory=function(index){const item=PROJECT_AREAS[index];if(!item)return;const label=prompt('修改分类名称',item.label);if(!label?.trim())return;item.label=label.trim();saveProjectCategories();refreshProjectCategorySelect();openProjectCategoryManager();renderWorkflow();};
+  window.deleteProjectCategory=function(index){const item=PROJECT_AREAS[index];if(!item||PROJECT_AREAS.length<=1)return;const fallback=PROJECT_AREAS.find((_,i)=>i!==index);const count=state.projects.filter(p=>p.area===item.value).length;if(!confirm(count?`“${item.label}”下有 ${count} 个项目。删除分类后，这些项目会移动到“${fallback.label}”，继续吗？`:`删除空分类“${item.label}”吗？`))return;state.projects.forEach(p=>{if(p.area===item.value)p.area=fallback.value});PROJECT_AREAS.splice(index,1);saveProjectCategories();refreshProjectCategorySelect();openProjectCategoryManager();renderWorkflow();};
+  function mountManagerButton(){const badge=document.getElementById('workflowProjectBadge');if(!badge||document.getElementById('v10CategoryButton'))return;badge.insertAdjacentHTML('afterend','<button id="v10CategoryButton" type="button" class="secondary-action" onclick="openProjectCategoryManager()">管理分类</button>');}
+  projectCategoryRows();refreshProjectCategorySelect();
+  const priorWorkflow=renderWorkflow;
+  renderWorkflow=function(){projectCategoryRows();priorWorkflow();refreshProjectCategorySelect();mountManagerButton();};
+  renderWorkflow();
 })();
 
 /* ---- preserved execution layer ---- */
