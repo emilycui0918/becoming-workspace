@@ -1837,3 +1837,7 @@ input:focus,select:focus,textarea:focus,button:focus-visible,a:focus-visible{out
 .sop-standard-card .sop-minimum{margin-top:8px;padding:9px 11px;border-radius:10px;background:#f3f0ea}
 .sop-standard-card small{display:block;margin-top:8px;color:var(--v5-muted,#6f6a62)}
 @media(max-width:760px){.sop-standard-intro{flex-direction:column}.sop-standard-intro button{width:100%}}
+/* One primary navigation per screen: top navigation on desktop, bottom navigation on mobile. */
+#sidebar,#btnSidebarToggle{display:none!important}
+#appLayout{grid-template-columns:minmax(0,1fr)!important;max-width:1280px!important}
+@media(max-width:900px){#globalTopNav{display:none!important}#appLayout{padding-bottom:92px!important}}
